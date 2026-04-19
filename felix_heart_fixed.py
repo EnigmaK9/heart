@@ -80,30 +80,21 @@ class StrayKidsHeartScene:
         r = np.where(r == 0, 1e-10, r)  # evitar división por cero
 
         # ---------------------------------------------------------------
-        # UV PLANAR FRONTAL con clamp agresivo
-        # - La textura cubre toda la cara frontal (Y < 0)
-        # - La cara trasera recibe UV en los bordes (0 o 1) → repite el borde
-        # - np.clip(u,0,1) + repeat=False evita checkerboard en la trasera
+        # UV PLANAR FRONTAL — proyección directa X/Z sobre el frente
+        # Esto evita completamente costuras, espejos y checkerboard.
+        # La textura se proyecta como si fuera un sello estampado de frente.
         # ---------------------------------------------------------------
 
+        # Bounds del mesh para normalizar
         x_min, x_max = np.min(x_pts), np.max(x_pts)
         z_min, z_max = np.min(z_pts), np.max(z_pts)
 
-        # Margen de estiramiento: 0.0 = ajustado, negativo = se estira fuera del borde
-        margin = -0.12   # estira la textura un 12% más allá de los bordes
+        # U: posición horizontal (X), centrado y normalizado
+        u = (x_pts - x_min) / (x_max - x_min)
+        u = 1.0 - u  # flip para que no salga espejado
 
-        x_range = (x_max - x_min) * (1.0 + 2 * abs(margin))
-        z_range = (z_max - z_min) * (1.0 + 2 * abs(margin))
-
-        u = (x_pts - (x_min - abs(margin) * (x_max - x_min))) / x_range
-        u = 1.0 - u  # flip horizontal
-
-        v = (z_pts - (z_min - abs(margin) * (z_max - z_min))) / z_range
-
-        # CLAMP: todo lo que se sale del rango toma el color del borde de la imagen
-        # Esto convierte el negro del checkerboard en el color rosa del borde de la textura
-        u = np.clip(u, 0.0, 1.0)
-        v = np.clip(v, 0.0, 1.0)
+        # V: posición vertical (Z), normalizado
+        v = (z_pts - z_min) / (z_max - z_min)
 
         heart_mesh.active_texture_coordinates = np.column_stack((u, v))
 
@@ -225,41 +216,24 @@ class StrayKidsHeartScene:
         if self.texture_path:
             try:
                 heart_texture = pv.read_texture(self.texture_path)
-                # CLAMP: evita repetición en los bordes (elimina checkerboard trasero)
-                heart_texture.SetWrap(0)  # 0 = VTK_TEXTURE_EDGE_CLAMP
                 print(f"[OK] Textura cargada: {self.texture_path}")
             except Exception as e:
                 print(f"[!] No se pudo cargar la textura: {e}")
                 print("[!] El corazón se mostrará en rosa claro.")
 
         if heart_texture:
-            # PASO 1: capa base rosa 100% opaca — cubre TODO el corazón
-            # Esta es la que rellena las esquinas negras sin textura
-            self.plotter.add_mesh(
-                heart_mesh,
-                color=HEART_COLOR,
-                smooth_shading=True,
-                specular=0.3,
-                opacity=1.0,
-                ambient=0.5,
-                diffuse=0.8,
-            )
-            # PASO 2: textura encima — polygon offset evita z-fighting 100%
+            # UNA SOLA MALLA, proyección planar, sin costuras ni negro.
             self.heart_actor = self.plotter.add_mesh(
-                heart_mesh.copy(),
+                heart_mesh,
                 texture=heart_texture,
+                color=HEART_COLOR,
                 smooth_shading=True,
                 specular=0.5,
                 specular_power=30,
                 opacity=1.0,
-                ambient=0.5,
-                diffuse=0.8,
+                ambient=0.6,   # alto para que los bordes sean rosa, nunca negro
+                diffuse=0.6,
             )
-            # Desplaza la capa de textura hacia la cámara en el depth buffer
-            # Esto elimina el z-fighting sin necesidad de opacity < 1
-            self.heart_actor.GetProperty().SetPolygonOffsetFaces(True)
-            self.heart_actor.GetMapper().SetResolveCoincidentTopologyToPolygonOffset()
-            self.heart_actor.GetMapper().SetRelativeCoincidentTopologyPolygonOffsetParameters(-1, -1)
         else:
             # --- SIN TEXTURA: puro rosa ---
             self.heart_actor = self.plotter.add_mesh(
