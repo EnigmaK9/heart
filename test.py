@@ -129,10 +129,10 @@ class StrayKidsHeartScene:
         
         # Procedural Starfield
         np.random.seed(42)
-        num_stars = 4000
-        stars_pos = np.random.uniform(-15, 15, (num_stars, 3))
+        num_stars = 4000                                       # <-- Tweak 1: Total amount
+        stars_pos = np.random.uniform(-90, 90, (num_stars, 3)) # <-- Tweak 2: Spread area
         dist = np.linalg.norm(stars_pos, axis=1)
-        mask = dist > 6.0 # Don't place stars inside the heart area
+        mask = dist > 6.0                                      # <-- Tweak 3: Empty space in middle
         stars_mesh = pv.PolyData(stars_pos[mask])
         self.plotter.add_mesh(stars_mesh, color='white', point_size=2.0, render_points_as_spheres=True, opacity=0.6)
 
