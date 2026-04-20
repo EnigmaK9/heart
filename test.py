@@ -11,6 +11,8 @@ Key Update: Press 'Space' to toggle the orbital rotation while keeping the heart
 
 import math
 import time
+import sys # <-- ADDED: For handling the command line test flag
+import unittest # <-- ADDED: Python's built-in testing framework
 import numpy as np
 import pyvista as pv
 from skimage import measure
@@ -260,7 +262,53 @@ class StrayKidsHeartScene:
         self.plotter.show()
 
 
+# --- NEW: Testing Suite ---
+class TestStrayKidsHeartScene(unittest.TestCase):
+    def setUp(self):
+        # We initialize with a very low resolution (e.g., 20) just for testing.
+        # This makes the math calculate instantly without freezing the test runner.
+        self.app = StrayKidsHeartScene(resolution=20, text="Test")
+
+    def test_initial_state(self):
+        """Ensures the app starts with the correct default states."""
+        self.assertTrue(self.app.is_rotating)
+        self.assertEqual(self.app.rotation_speed, BASE_ROTATION_SPEED)
+        self.assertEqual(self.app.beat_bpm, BASE_BEAT_BPM)
+
+    def test_toggle_rotation(self):
+        """Simulates pressing the spacebar to ensure the logic works."""
+        self.app._toggle_rotation()
+        self.assertFalse(self.app.is_rotating, "Rotation should be False after one toggle.")
+        
+        self.app._toggle_rotation()
+        self.assertTrue(self.app.is_rotating, "Rotation should be True after second toggle.")
+
+    def test_mesh_generation(self):
+        """Checks if the Taubin equation successfully generates 3D geometry."""
+        mesh = self.app._generate_taubin_heart()
+        
+        # Verify it returns a PyVista PolyData object
+        self.assertIsInstance(mesh, pv.PolyData)
+        
+        # Verify it actually contains 3D points
+        self.assertGreater(mesh.n_points, 0, "Mesh failed to generate points.")
+        
+        # Verify UV coordinates were successfully applied
+        self.assertIsNotNone(mesh.active_texture_coordinates, "UV mapping failed.")
+
+    def tearDown(self):
+        # Clean up the plotter from memory so tests don't leak resources
+        self.app.plotter.close()
+
+
 if __name__ == "__main__":
-    # Note: Ensure "02texture.jpg" exists in your working directory for the texture to apply.
-    app = StrayKidsHeartScene(resolution=350, text="Anel", texture_path="02texture.jpg")
-    app.build_and_run()
+    # --- NEW: Command Line Logic ---
+    # This allows you to run the file normally, OR run it in "test mode"
+    if len(sys.argv) > 1 and sys.argv[1] == "--test":
+        print("Running tests for BbokAri Heart Generator...")
+        sys.argv.pop() # Remove the flag so unittest doesn't get confused
+        unittest.main()
+    else:
+        # Note: Ensure "02texture.jpg" exists in your working directory for the texture to apply.
+        app = StrayKidsHeartScene(resolution=350, text="Anel", texture_path="02texture.jpg")
+        app.build_and_run()
